@@ -6,9 +6,11 @@ env:
 tasks:
   up:
     desc: Start Tilt for local development with kind (use -- <args> for tilt options)
+    deps:
+      - :kind:create
     cmds:
       - |
-        if [[ -z {{.CLI_ARGS}} ]]; then
+        if [[ -z "{{.CLI_ARGS}}" ]]; then
           tilt up
         else
           case "{{.CLI_ARGS}}" in
