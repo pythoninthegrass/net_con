@@ -1,0 +1,12 @@
+version: "3.0"
+
+tasks:
+  up:
+    desc: Start Tilt for local development with kind (use -- <args> for tilt options)
+    cmds:
+      - tilt up {{.CLI_ARGS}}
+
+  down:
+    desc: Stop Tilt (use -- <args> for tilt options)
+    cmds:
+      - tilt down {{.CLI_ARGS}}

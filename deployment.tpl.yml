@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.SERVICE}}
+  namespace: {{.NAMESPACE | default "default"}}
+  labels:
+    app: {{.SERVICE}}
+spec:
+  replicas: {{.REPLICAS | default 1}}
+  selector:
+    matchLabels:
+      app: {{.SERVICE}}
+  template:
+    metadata:
+      labels:
+        app: {{.SERVICE}}
+    spec:
+      containers:
+      - name: {{.SERVICE}}
+        image: {{.REGISTRY}}{{.SERVICE}}:{{.VERSION}}
+        imagePullPolicy: {{.IMAGE_PULL_POLICY | default "Always"}}
+        resources:
+          limits:
+            cpu: {{.CPU_LIMIT | default "100m"}}
+            memory: {{.MEMORY_LIMIT | default "128Mi"}}
+          requests:
+            cpu: {{.CPU_REQUEST | default "50m"}}
+            memory: {{.MEMORY_REQUEST | default "64Mi"}}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 1000
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{.SERVICE}}-job-{{.TIMESTAMP | default "manual"}}
+  namespace: {{.NAMESPACE | default "default"}}
+  labels:
+    app: {{.SERVICE}}-job
+spec:
+  containers:
+  - name: {{.SERVICE}}
+    image: {{.REGISTRY}}{{.SERVICE}}:{{.VERSION}}
+    imagePullPolicy: {{.IMAGE_PULL_POLICY | default "Always"}}
+    resources:
+      limits:
+        cpu: {{.CPU_LIMIT | default "100m"}}
+        memory: {{.MEMORY_LIMIT | default "128Mi"}}
+      requests:
+        cpu: {{.CPU_REQUEST | default "50m"}}
+        memory: {{.MEMORY_REQUEST | default "64Mi"}}
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+        - ALL
+  restartPolicy: Never
+  securityContext:
+    fsGroup: 1000

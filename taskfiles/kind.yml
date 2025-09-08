@@ -1,0 +1,42 @@
+version: "3.0"
+
+tasks:
+  create:
+    desc: Create a kind cluster for local development
+    cmds:
+      - |
+        kind create cluster --config=- <<EOF
+        kind: Cluster
+        apiVersion: kind.x-k8s.io/v1alpha4
+        name: kind
+        nodes:
+        - role: control-plane
+          kubeadmConfigPatches:
+          - |
+            kind: InitConfiguration
+            nodeRegistration:
+              kubeletExtraArgs:
+                node-labels: "ingress-ready=true"
+          extraPortMappings:
+          - containerPort: 80
+            hostPort: 80
+            protocol: TCP
+          - containerPort: 443
+            hostPort: 443
+            protocol: TCP
+        EOF
+    status:
+      - kind get clusters | grep -q "^kind$"
+
+  delete:
+    desc: Delete the kind cluster
+    cmds:
+      - kind delete cluster --name kind
+
+  load:
+    desc: Load the Docker image into kind
+    deps:
+      - task: docker:build
+        dir: {{.ROOT_DIR}}
+    cmds:
+      - kind load docker-image {{.SERVICE}}:{{.VERSION}} --name kind

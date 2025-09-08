@@ -1,0 +1,133 @@
+version: "3.0"
+
+vars:
+  NAMESPACE: '{{.NAMESPACE | default "default"}}'
+  SERVICE: '{{.SERVICE | default "net-con"}}'
+
+tasks:
+  default:
+    desc: Kubectl wrapper (use -- <kubectl args>)
+    cmds:
+      - kubectl -n {{.NAMESPACE}} {{.CLI_ARGS}}
+
+  get:
+    desc: Get resources (use -- <resource> [options])
+    vars:
+      ARGS: '{{.CLI_ARGS | default "pods"}}'
+    cmds:
+      - kubectl get -n {{.NAMESPACE}} {{.ARGS}}
+
+  describe:
+    desc: Describe resources (use -- <resource/name>)
+    cmds:
+      - kubectl describe -n {{.NAMESPACE}} {{.CLI_ARGS}}
+
+  logs:
+    desc: View logs (use -- <pod-name> or -- -l <label>)
+    vars:
+      ARGS: '{{.CLI_ARGS | default "-l app=" + .SERVICE + " --tail=100"}}'
+    cmds:
+      - kubectl logs -n {{.NAMESPACE}} {{.ARGS}}
+
+  exec:
+    desc: Exec into container (use -- <pod-name> [command])
+    vars:
+      POD: '{{index (splitArgs .CLI_ARGS) 0 | default ""}}'
+      CMD: '{{slice (splitArgs .CLI_ARGS) 1 | join " " | default "sh"}}'
+    preconditions:
+      - sh: '[ -n "{{.POD}}" ]'
+        msg: "Pod name required. Usage: task k:exec -- <pod-name> [command]"
+    cmds:
+      - kubectl exec -it -n {{.NAMESPACE}} {{.POD}} -- {{.CMD}}
+
+  port-forward:
+    desc: Port forward to a pod (use -- <pod-name> <local-port>:<pod-port>)
+    vars:
+      POD: '{{index (splitArgs .CLI_ARGS) 0 | default ""}}'
+      PORTS: '{{index (splitArgs .CLI_ARGS) 1 | default "8080:8080"}}'
+    preconditions:
+      - sh: '[ -n "{{.POD}}" ]'
+        msg: "Pod name required. Usage: task k:port-forward -- <pod-name> [local-port:pod-port]"
+    cmds:
+      - kubectl port-forward -n {{.NAMESPACE}} {{.POD}} {{.PORTS}}
+
+  apply:
+    desc: Apply configuration (use -- <file-or-stdin>)
+    cmds:
+      - kubectl apply -n {{.NAMESPACE}} {{.CLI_ARGS}}
+
+  delete:
+    desc: Delete resources (use -- <resource> <name>)
+    cmds:
+      - kubectl delete -n {{.NAMESPACE}} {{.CLI_ARGS}}
+
+  scale:
+    desc: Scale deployment (use -- <deployment-name> <replicas>)
+    vars:
+      DEPLOYMENT: '{{index (splitArgs .CLI_ARGS) 0 | default .SERVICE}}'
+      REPLICAS: '{{index (splitArgs .CLI_ARGS) 1 | default "1"}}'
+    cmds:
+      - kubectl scale deployment/{{.DEPLOYMENT}} -n {{.NAMESPACE}} --replicas={{.REPLICAS}}
+
+  rollout:
+    desc: Manage rollouts (use -- <subcommand> <resource>)
+    vars:
+      ARGS: '{{.CLI_ARGS | default "status deployment/" + .SERVICE}}'
+    cmds:
+      - kubectl rollout -n {{.NAMESPACE}} {{.ARGS}}
+
+  top:
+    desc: Show resource usage (use -- pods|nodes)
+    vars:
+      RESOURCE: '{{.CLI_ARGS | default "pods"}}'
+    cmds:
+      - kubectl top {{.RESOURCE}} -n {{.NAMESPACE}}
+
+  events:
+    desc: Show events (use -- [options])
+    vars:
+      ARGS: '{{.CLI_ARGS | default "--sort-by=.metadata.creationTimestamp"}}'
+    cmds:
+      - kubectl get events -n {{.NAMESPACE}} {{.ARGS}}
+
+  wait:
+    desc: Wait for resource condition (use -- <resource> --for=<condition>)
+    cmds:
+      - kubectl wait -n {{.NAMESPACE}} {{.CLI_ARGS}}
+
+  cp:
+    desc: Copy files to/from pods (use -- <src> <dst>)
+    cmds:
+      - kubectl cp -n {{.NAMESPACE}} {{.CLI_ARGS}}
+
+  debug:
+    desc: Debug a pod (use -- <pod-name> [options])
+    vars:
+      POD: '{{index (splitArgs .CLI_ARGS) 0 | default ""}}'
+      ARGS: '{{slice (splitArgs .CLI_ARGS) 1 | join " " | default "--image=busybox"}}'
+    preconditions:
+      - sh: '[ -n "{{.POD}}" ]'
+        msg: "Pod name required. Usage: task k:debug -- <pod-name> [options]"
+    cmds:
+      - kubectl debug -n {{.NAMESPACE}} {{.POD}} {{.ARGS}}
+
+  ctx:
+    desc: Manage contexts (use -- <subcommand>)
+    vars:
+      ARGS: '{{.CLI_ARGS | default "current-context"}}'
+    cmds:
+      - kubectl config {{.ARGS}}
+
+  ns:
+    desc: Switch or show namespace (use -- <namespace>)
+    vars:
+      NS: '{{.CLI_ARGS | default ""}}'
+    cmds:
+      - |
+        if [ -z "{{.NS}}" ]; then
+          kubectl config view --minify --output 'jsonpath={..namespace}'
+          echo
+        else
+          kubectl config set-context --current --namespace={{.NS}}
+          echo "Switched to namespace: {{.NS}}"
+        fi

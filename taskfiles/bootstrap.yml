@@ -1,0 +1,123 @@
+version: "3.0"
+
+deploy:
+  desc: Deploy to Kubernetes (use -- pod|persistent for deployment type)
+  vars:
+    DEPLOY_TYPE: '{{.CLI_ARGS | default "pod"}}'
+  cmds:
+    - |
+      case "{{.DEPLOY_TYPE}}" in
+        pod|job)
+          task pod
+          ;;
+        persistent|deployment)
+          task persistent
+          ;;
+        *)
+          echo "Invalid deployment type: {{.DEPLOY_TYPE}}"
+          echo "Valid types: pod, job, persistent, deployment"
+          echo "Usage: task deploy -- [pod|persistent]"
+          exit 1
+          ;;
+      esac
+
+  pod:
+    desc: Deploy to Kubernetes as a one-time job pod
+    deps: [build]
+    vars:
+      POD_NAME: '{{.SERVICE}}-job-{{now | date "20060102-150405"}}'
+      TIMESTAMP: '{{now | date "20060102-150405"}}'
+      CPU_LIMIT: '{{.CPU_LIMIT | default "100m"}}'
+      MEMORY_LIMIT: '{{.MEMORY_LIMIT | default "128Mi"}}'
+      CPU_REQUEST: '{{.CPU_REQUEST | default "50m"}}'
+      MEMORY_REQUEST: '{{.MEMORY_REQUEST | default "64Mi"}}'
+    cmds:
+      - echo "Deploying {{.FULL_IMAGE}} to Kubernetes..."
+      - |
+        export SERVICE="{{.SERVICE}}"
+        export VERSION="{{.VERSION}}"
+        export REGISTRY="{{.REGISTRY}}"
+        export NAMESPACE="{{.NAMESPACE}}"
+        export TIMESTAMP="{{.TIMESTAMP}}"
+        export REPLICAS="0"
+        export CPU_LIMIT="{{.CPU_LIMIT}}"
+        export MEMORY_LIMIT="{{.MEMORY_LIMIT}}"
+        export CPU_REQUEST="{{.CPU_REQUEST}}"
+        export MEMORY_REQUEST="{{.MEMORY_REQUEST}}"
+        envsubst < deployment.tpl.yml | tail -n +41 | kubectl apply -f -
+      - echo "Deployment complete! Pod name {{.POD_NAME}}"
+      - echo "Check logs with kubectl logs -n {{.NAMESPACE}} {{.POD_NAME}}"
+
+  persistent:
+    desc: Deploy as a persistent Kubernetes deployment
+    deps: [build]
+    vars:
+      TIMESTAMP: '{{now | date "20060102-150405"}}'
+      REPLICAS: '{{.REPLICAS | default 1}}'
+      CPU_LIMIT: '{{.CPU_LIMIT | default "100m"}}'
+      MEMORY_LIMIT: '{{.MEMORY_LIMIT | default "128Mi"}}'
+      CPU_REQUEST: '{{.CPU_REQUEST | default "50m"}}'
+      MEMORY_REQUEST: '{{.MEMORY_REQUEST | default "64Mi"}}'
+    cmds:
+      - echo "Deploying {{.FULL_IMAGE}} as persistent deployment..."
+      - |
+        export SERVICE="{{.SERVICE}}"
+        export VERSION="{{.VERSION}}"
+        export REGISTRY="{{.REGISTRY}}"
+        export NAMESPACE="{{.NAMESPACE}}"
+        export TIMESTAMP="{{.TIMESTAMP}}"
+        export REPLICAS="{{.REPLICAS}}"
+        export CPU_LIMIT="{{.CPU_LIMIT}}"
+        export MEMORY_LIMIT="{{.MEMORY_LIMIT}}"
+        export CPU_REQUEST="{{.CPU_REQUEST}}"
+        export MEMORY_REQUEST="{{.MEMORY_REQUEST}}"
+        envsubst < deployment.tpl.yml | kubectl apply -f -
+      - kubectl rollout status deployment/{{.SERVICE}} -n {{.NAMESPACE}}
+      - echo "Deployment complete!"
+      - echo 'Check logs with kubectl logs -n {{.NAMESPACE}} -l app={{.SERVICE}} --tail=100'
+
+  status:
+    desc: Show status of connectivity test resources (use -- <resource-type> for specific resources)
+    vars:
+      RESOURCE: '{{.CLI_ARGS | default "all"}}'
+    cmds:
+      - |
+        case "{{.RESOURCE}}" in
+          all)
+            echo "=== Pods ==="
+            kubectl get pods -n {{.NAMESPACE}} -l app={{.SERVICE}}
+            echo ""
+            echo "=== Deployments ==="
+            kubectl get deployments -n {{.NAMESPACE}} -l app={{.SERVICE}}
+            echo ""
+            echo "=== Recent Events ==="
+            kubectl get events -n {{.NAMESPACE}} --sort-by=.metadata.creationTimestamp | grep {{.SERVICE}} | tail -5
+            ;;
+          pods|pod)
+            kubectl get pods -n {{.NAMESPACE}} -l app={{.SERVICE}} -o wide
+            ;;
+          deployments|deployment|deploy)
+            kubectl get deployments -n {{.NAMESPACE}} -l app={{.SERVICE}} -o wide
+            ;;
+          events|event)
+            kubectl get events -n {{.NAMESPACE}} --sort-by=.metadata.creationTimestamp | grep {{.SERVICE}}
+            ;;
+          *)
+            kubectl get {{.RESOURCE}} -n {{.NAMESPACE}} -l app={{.SERVICE}}
+            ;;
+        esac
+
+  logs:
+    desc: View logs from the connectivity test pods (use -- <args> for kubectl options)
+    vars:
+      KUBECTL_ARGS: '{{.CLI_ARGS | default "--tail=100 -f"}}'
+    cmds:
+      - kubectl logs -n {{.NAMESPACE}} -l app={{.SERVICE}} {{.KUBECTL_ARGS}}
+
+  clean:
+    desc: Clean up Kubernetes resources
+    cmds:
+      - echo "Cleaning up connectivity test resources..."
+      - kubectl delete pods -l app={{.SERVICE}} -n {{.NAMESPACE}} --ignore-not-found=true
+      - kubectl delete deployment {{.SERVICE}} -n {{.NAMESPACE}} --ignore-not-found=true
+      - echo "Cleanup complete!"

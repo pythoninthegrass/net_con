@@ -1,0 +1,34 @@
+[project]
+name = "net-con"
+version = "0.1.0"
+authors = [
+    { name = "pythoninthegrass", email = "4097471+pythoninthegrass@users.noreply.github.com" }
+]
+requires-python = ">=3.13,<3.14"
+
+dependencies = [
+    "requests>=2.32.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pyclean>=3.0.0",
+    "pytest-asyncio>=0.25.2",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.12.11",
+]
+test = [
+    "coverage>=7.6.1",
+    "hypothesis[cli]>=6.112.1",
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.1.1",
+    "pytest-datafiles>=3.0.0",
+    "pytest-xdist>=3.6.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+python_classes = ["Test*"]

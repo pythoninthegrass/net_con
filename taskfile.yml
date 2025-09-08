@@ -1,0 +1,92 @@
+version: "3.0"
+
+includes:
+  bootstrap:
+    taskfile: ./taskfiles/bootstrap.yml
+  docker:
+    taskfile: ./taskfiles/docker.yml
+  kind:
+    taskfile: ./taskfiles/kind.yml
+  kubectl:
+    taskfile: ./taskfiles/k8s.yml
+    aliases: ["kubernetes", "k"]
+  tilt:
+    taskfile: ./taskfiles/tilt.yml
+  uv:
+    taskfile: ./taskfiles/uv.yml
+
+env:
+  VENV_DIR: "{{.ROOT_DIR}}/.venv"
+  PATH: "{{.VENV_DIR}}/bin:{{.PATH}}"
+
+vars:
+  SERVICE: '{{.SERVICE | default "net-con"}}'
+  VERSION: '{{.VERSION | default "latest"}}'
+  REGISTRY: '{{.REGISTRY | default "ghcr.io/"}}'
+  NAMESPACE: '{{.NAMESPACE | default "default"}}'
+  FULL_IMAGE: "{{.REGISTRY}}{{.SERVICE}}:{{.VERSION}}"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the Docker image
+    cmds:
+      - task: docker:build
+
+  check-prereqs:
+    desc: Check if required tools are available
+    cmds:
+      - echo "Checking prerequisites..."
+      - docker --version
+      - kubectl version --client
+      - echo "All prerequisites satisfied!"
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is not installed or not in PATH"
+      - sh: command -v kubectl
+        msg: "kubectl is not installed or not in PATH"
+
+  local-setup:
+    desc: Complete local development setup
+    cmds:
+      - task: kind:create
+      - task: build
+      - task: kind:load
+      - echo "Local development environment is ready!"
+      - echo "Run 'task tilt:up' to start Tilt"
+
+  up:
+    desc: Start Tilt for development (alias for tilt:up)
+    cmds:
+      - task: tilt:up
+
+  down:
+    desc: Stop Tilt (alias for tilt:down)
+    cmds:
+      - task: tilt:down
+
+  logs:
+    desc: View logs (shortcut for bootstrap:logs)
+    cmds:
+      - task: bootstrap:logs
+
+  exec:
+    desc: Exec into container (shortcut for k:exec)
+    cmds:
+      - task: k:exec
+
+  status:
+    desc: Show deployment status (shortcut for status)
+    cmds:
+      - task: status
+
+  clean:
+    desc: Clean up all resources
+    cmds:
+      - task: clean
+      - task: docker:down
+      - task: docker:prune

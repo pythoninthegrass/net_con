@@ -1,0 +1,14 @@
+.git/
+.vscode/
+*.pyc
+__pycache__/
+.pytest_cache/
+.tox/
+*.egg-info/
+dist/
+build/
+.env
+.env.*
+*.log
+.DS_Store
+deployment.yml
