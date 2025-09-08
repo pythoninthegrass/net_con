@@ -15,5 +15,4 @@ RUN chown -R appuser:appuser /app
 
 USER appuser
 
-# Run the connectivity tests
 CMD ["uv", "run", "python", "main.py"]
