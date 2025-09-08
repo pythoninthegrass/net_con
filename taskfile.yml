@@ -22,9 +22,9 @@ env:
 vars:
   SERVICE: '{{.SERVICE | default "net-con"}}'
   VERSION: '{{.VERSION | default "latest"}}'
-  REGISTRY: '{{.REGISTRY | default "ghcr.io/"}}'
+  REGISTRY: '{{.REGISTRY | default "ghcr.io"}}'
   NAMESPACE: '{{.NAMESPACE | default "default"}}'
-  FULL_IMAGE: "{{.REGISTRY}}{{.SERVICE}}:{{.VERSION}}"
+  FULL_IMAGE: "{{.REGISTRY}}/{{.SERVICE}}:{{.VERSION}}"
 
 tasks:
   default:
@@ -35,7 +35,7 @@ tasks:
   build:
     desc: Build the Docker image
     cmds:
-      - task: docker:build
+      - task: docker:buildx
 
   check-prereqs:
     desc: Check if required tools are available

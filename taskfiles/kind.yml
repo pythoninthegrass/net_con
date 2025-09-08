@@ -36,7 +36,6 @@ tasks:
   load:
     desc: Load the Docker image into kind
     deps:
-      - task: docker:build
-        dir: {{.ROOT_DIR}}
+      - :docker:buildx
     cmds:
-      - kind load docker-image {{.SERVICE}}:{{.VERSION}} --name kind
+      - kind load docker-image {{.FULL_IMAGE}} --name kind
