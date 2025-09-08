@@ -2,40 +2,54 @@ version: "3.0"
 
 tasks:
   create:
-    desc: Create a kind cluster for local development
+    desc: Create a kind cluster for local development using ctlptl
     cmds:
       - |
-        kind create cluster --config=- <<EOF
+        ctlptl apply -f - <<EOF
+        apiVersion: ctlptl.dev/v1alpha1
+        kind: Registry
+        name: ctlptl-registry
+        port: 5005
+        ---
+        apiVersion: ctlptl.dev/v1alpha1
         kind: Cluster
-        apiVersion: kind.x-k8s.io/v1alpha4
-        name: kind
-        nodes:
-        - role: control-plane
-          kubeadmConfigPatches:
-          - |
-            kind: InitConfiguration
-            nodeRegistration:
-              kubeletExtraArgs:
-                node-labels: "ingress-ready=true"
-          extraPortMappings:
-          - containerPort: 80
-            hostPort: 80
-            protocol: TCP
-          - containerPort: 443
-            hostPort: 443
-            protocol: TCP
+        product: kind
+        name: kind-kind
+        registry: ctlptl-registry
+        kindV1Alpha4Cluster:
+          nodes:
+          - role: control-plane
+            kubeadmConfigPatches:
+            - |
+              kind: InitConfiguration
+              nodeRegistration:
+                kubeletExtraArgs:
+                  node-labels: "ingress-ready=true"
+            extraPortMappings:
+            - containerPort: 80
+              hostPort: 80
+              protocol: TCP
+            - containerPort: 443
+              hostPort: 443
+              protocol: TCP
         EOF
     status:
-      - kind get clusters | grep -q "^kind$"
+      - ctlptl get cluster kind-kind
 
   delete:
-    desc: Delete the kind cluster
+    desc: Delete the kind cluster and registry using ctlptl
     cmds:
-      - kind delete cluster --name kind
+      - ctlptl delete cluster kind-kind --ignore-not-found
+      - ctlptl delete registry ctlptl-registry --ignore-not-found
 
   load:
-    desc: Load the Docker image into kind
+    desc: Load the Docker image into kind cluster
     deps:
       - :docker:buildx
     cmds:
       - kind load docker-image {{.FULL_IMAGE}} --name kind
+
+  registry-url:
+    desc: Get the local registry URL for the kind cluster
+    cmds:
+      - ctlptl get cluster kind-kind -o template --template '{{.status.localRegistryHosting.host}}'

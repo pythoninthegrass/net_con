@@ -1,12 +1,33 @@
 version: "3.0"
 
+env:
+  DO_NOT_TRACK: '{{.DO_NOT_TRACK | default "1"}}'
+
 tasks:
   up:
     desc: Start Tilt for local development with kind (use -- <args> for tilt options)
     cmds:
-      - tilt up {{.CLI_ARGS}}
+      - |
+        if [[ -z {{.CLI_ARGS}} ]]; then
+          tilt up
+        else
+          case "{{.CLI_ARGS}}" in
+            -v|--verbose)
+              tilt up --stream=true
+              ;;
+            *)
+              tilt up {{.CLI_ARGS}}
+              ;;
+          esac
+        fi
 
   down:
     desc: Stop Tilt (use -- <args> for tilt options)
     cmds:
       - tilt down {{.CLI_ARGS}}
+
+  destroy:
+    desc: Stop Tilt and delete the kind cluster
+    cmds:
+      - tilt down || true
+      - task kind:delete

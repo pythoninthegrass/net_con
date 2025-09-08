@@ -61,6 +61,8 @@ tasks:
 
   up:
     desc: Start Tilt for development (alias for tilt:up)
+    deps:
+      - kind:create
     cmds:
       - task: tilt:up
 
@@ -87,6 +89,6 @@ tasks:
   clean:
     desc: Clean up all resources
     cmds:
-      - task: clean
-      - task: docker:down
+      - task: tilt:clean
+      - task: docker:down  
       - task: docker:prune

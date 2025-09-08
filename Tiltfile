@@ -6,13 +6,19 @@ load('ext://restart_process', 'docker_build_with_restart')
 # Configuration
 config.define_string("registry", args=False, usage="Container registry URL")
 config.define_string("namespace", args=False, usage="Kubernetes namespace to deploy to")
-config.parse()
+cfg = config.parse()
 
-# Set default values
-registry = cfg.get("registry", "ghcr.io/")
-namespace = cfg.get("namespace", "default")
-service_name = "net-con"
-version = "latest"
+# Set default values from environment variables with fallbacks
+default_registry = os.getenv("REGISTRY", "ghcr.io")
+
+# Check if ctlptl kind cluster exists and use local registry
+if str(local('ctlptl get cluster kind-kind >/dev/null 2>&1; echo $?', quiet=True)).strip() == "0":
+    default_registry = "localhost:5005"
+
+registry = cfg.get("registry") or default_registry
+namespace = cfg.get("namespace") or os.getenv("NAMESPACE", "default")
+service_name = os.getenv("SERVICE", "net-con")
+version = os.getenv("VERSION", "latest")
 
 # Ensure we're using kind
 allow_k8s_contexts('kind-kind')
@@ -26,11 +32,13 @@ metadata:
 """.format(namespace)))
 
 # Build the Docker image with hot reload
+# Use the image name from the deployment template for consistency
+image_name = '{}/{}:{}'.format(os.getenv("REGISTRY", "ghcr.io"), service_name, version)
 docker_build_with_restart(
-    '{}{}'.format(registry, service_name),
+    image_name,
     '.',
     dockerfile='Dockerfile',
-    entrypoint=['uv', 'run', 'python', 'main.py'],
+    entrypoint=['sh', '-c', 'export UV_CACHE_DIR=/tmp/.cache/uv && export UV_NO_SYNC=1 && uv run python main.py'],
     only=[
         './main.py',
         './pyproject.toml',
@@ -38,18 +46,21 @@ docker_build_with_restart(
     ],
     live_update=[
         sync('./main.py', '/app/main.py'),
-        run('cd /app && uv sync --frozen', trigger=['./pyproject.toml', './uv.lock']),
+        run('cd /app && export UV_CACHE_DIR=/tmp/.cache/uv && export UV_NO_SYNC=1 && uv sync --frozen', trigger=['./pyproject.toml', './uv.lock']),
+        run('touch /tmp/.restart-proc', trigger=['./main.py']),
     ],
 )
 
-# Apply the deployment template
-k8s_yaml('deployment.tpl.yml')
+# Generate deployment YAML from template using Task
+deployment_yaml = local('task bootstrap:template -- deployment', quiet=True)
+
+# Apply the deployment YAML
+k8s_yaml(deployment_yaml)
 
 # Configure the Kubernetes resource
 k8s_resource(
     service_name,
     port_forwards="8080:8080",  # Forward port if the app exposes one
-    resource_deps=['namespace'],
     labels=["net-con"],
 )
 
@@ -71,20 +82,3 @@ local_resource(
     auto_init=False,
     trigger_mode=TRIGGER_MODE_MANUAL,
 )
-
-# Print startup information
-print("""
-╔══════════════════════════════════════════════════════════════╗
-║                   Net-Con Development Setup                  ║
-╠══════════════════════════════════════════════════════════════╣
-║ Service: {}                                                  ║
-║ Namespace: {}                                                ║
-║ Registry: {}                                                 ║
-╠══════════════════════════════════════════════════════════════╣
-║ Available Commands:                                          ║
-║   • Press 'r' to rebuild                                     ║
-║   • Press 'l' to view logs                                   ║
-║   • Run 'tilt trigger run-tests' to execute tests            ║
-║   • Run 'tilt trigger cleanup-pods' to clean up old pods     ║
-╚══════════════════════════════════════════════════════════════╝
-""".format(service_name.ljust(48), namespace.ljust(47), registry.ljust(43)))

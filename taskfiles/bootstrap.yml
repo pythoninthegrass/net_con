@@ -1,57 +1,10 @@
 version: "3.0"
 
-deploy:
-  desc: Deploy to Kubernetes (use -- pod|persistent for deployment type)
-  vars:
-    DEPLOY_TYPE: '{{.CLI_ARGS | default "pod"}}'
-  cmds:
-    - |
-      case "{{.DEPLOY_TYPE}}" in
-        pod|job)
-          task pod
-          ;;
-        persistent|deployment)
-          task persistent
-          ;;
-        *)
-          echo "Invalid deployment type: {{.DEPLOY_TYPE}}"
-          echo "Valid types: pod, job, persistent, deployment"
-          echo "Usage: task deploy -- [pod|persistent]"
-          exit 1
-          ;;
-      esac
-
-  pod:
-    desc: Deploy to Kubernetes as a one-time job pod
-    deps: [build]
+tasks:
+  template:
+    desc: Generate Kubernetes YAML from template (use -- deployment|pod)
     vars:
-      POD_NAME: '{{.SERVICE}}-job-{{now | date "20060102-150405"}}'
-      TIMESTAMP: '{{now | date "20060102-150405"}}'
-      CPU_LIMIT: '{{.CPU_LIMIT | default "100m"}}'
-      MEMORY_LIMIT: '{{.MEMORY_LIMIT | default "128Mi"}}'
-      CPU_REQUEST: '{{.CPU_REQUEST | default "50m"}}'
-      MEMORY_REQUEST: '{{.MEMORY_REQUEST | default "64Mi"}}'
-    cmds:
-      - echo "Deploying {{.FULL_IMAGE}} to Kubernetes..."
-      - |
-        export SERVICE="{{.SERVICE}}"
-        export VERSION="{{.VERSION}}"
-        export REGISTRY="{{.REGISTRY}}"
-        export NAMESPACE="{{.NAMESPACE}}"
-        export TIMESTAMP="{{.TIMESTAMP}}"
-        export REPLICAS="0"
-        export CPU_LIMIT="{{.CPU_LIMIT}}"
-        export MEMORY_LIMIT="{{.MEMORY_LIMIT}}"
-        export CPU_REQUEST="{{.CPU_REQUEST}}"
-        export MEMORY_REQUEST="{{.MEMORY_REQUEST}}"
-        envsubst < deployment.tpl.yml | tail -n +41 | kubectl apply -f -
-      - echo "Deployment complete! Pod name {{.POD_NAME}}"
-      - echo "Check logs with kubectl logs -n {{.NAMESPACE}} {{.POD_NAME}}"
-
-  persistent:
-    desc: Deploy as a persistent Kubernetes deployment
-    deps: [build]
-    vars:
+      RESOURCE_TYPE: '{{.CLI_ARGS | default "deployment"}}'
       TIMESTAMP: '{{now | date "20060102-150405"}}'
       REPLICAS: '{{.REPLICAS | default 1}}'
       CPU_LIMIT: '{{.CPU_LIMIT | default "100m"}}'
@@ -59,7 +12,6 @@ deploy:
       CPU_REQUEST: '{{.CPU_REQUEST | default "50m"}}'
       MEMORY_REQUEST: '{{.MEMORY_REQUEST | default "64Mi"}}'
     cmds:
-      - echo "Deploying {{.FULL_IMAGE}} as persistent deployment..."
       - |
         export SERVICE="{{.SERVICE}}"
         export VERSION="{{.VERSION}}"
@@ -71,7 +23,65 @@ deploy:
         export MEMORY_LIMIT="{{.MEMORY_LIMIT}}"
         export CPU_REQUEST="{{.CPU_REQUEST}}"
         export MEMORY_REQUEST="{{.MEMORY_REQUEST}}"
-        envsubst < deployment.tpl.yml | kubectl apply -f -
+        case "{{.RESOURCE_TYPE}}" in
+          deployment)
+            envsubst < deployment.tpl.yml | head -n 55
+            ;;
+          pod)
+            envsubst < deployment.tpl.yml | tail -n +56
+            ;;
+          all)
+            envsubst < deployment.tpl.yml
+            ;;
+          *)
+            echo "Invalid resource type: {{.RESOURCE_TYPE}}" >&2
+            echo "Valid types: deployment, pod, all" >&2
+            exit 1
+            ;;
+        esac
+
+  deploy:
+    desc: Deploy to Kubernetes (use -- pod|persistent for deployment type)
+    vars:
+      DEPLOY_TYPE: '{{.CLI_ARGS | default "pod"}}'
+    cmds:
+      - |
+        case "{{.DEPLOY_TYPE}}" in
+          pod|job)
+            task pod
+            ;;
+          persistent|deployment)
+            task persistent
+            ;;
+          *)
+            echo "Invalid deployment type: {{.DEPLOY_TYPE}}"
+            echo "Valid types: pod, job, persistent, deployment"
+            echo "Usage: task deploy -- [pod|persistent]"
+            exit 1
+            ;;
+        esac
+
+  pod:
+    desc: Deploy to Kubernetes as a one-time job pod
+    deps: [build]
+    vars:
+      POD_NAME: '{{.SERVICE}}-job-{{now | date "20060102-150405"}}'
+      TIMESTAMP: '{{now | date "20060102-150405"}}'
+    cmds:
+      - echo "Deploying {{.FULL_IMAGE}} to Kubernetes..."
+      - task bootstrap:template -- pod | kubectl apply -f -
+      - echo "Deployment complete! Pod name {{.POD_NAME}}"
+      - echo "Check logs with kubectl logs -n {{.NAMESPACE}} {{.POD_NAME}}"
+
+  persistent:
+    desc: Deploy as a persistent Kubernetes deployment
+    deps: [build]
+    vars:
+      TIMESTAMP: '{{now | date "20060102-150405"}}'
+      REPLICAS: '{{.REPLICAS | default 1}}'
+    cmds:
+      - echo "Deploying {{.FULL_IMAGE}} as persistent deployment..."
+      - task bootstrap:template -- deployment | kubectl apply -f -
       - kubectl rollout status deployment/{{.SERVICE}} -n {{.NAMESPACE}}
       - echo "Deployment complete!"
       - echo 'Check logs with kubectl logs -n {{.NAMESPACE}} -l app={{.SERVICE}} --tail=100'
