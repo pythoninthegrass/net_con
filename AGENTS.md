@@ -44,14 +44,68 @@ uv run python main.py
 task build
 task docker:run
 
-# Development with Tilt
-task up    # Start Tilt
+# Development with Tilt (auto-creates kind cluster with ctlptl)
+task up    # Start Tilt (creates cluster + registry automatically)
 task down  # Stop Tilt
 
 # View logs and status
 task logs
 task status
 task exec  # Exec into container
+
+# Clean up everything (Tilt + cluster)
+task tilt:destroy
+```
+
+### Cluster Management
+
+```bash
+# Manual cluster operations (ctlptl-managed)
+task kind:create        # Create kind-kind cluster with local registry
+task kind:delete        # Delete cluster and registry
+task kind:registry-url  # Get local registry URL (localhost:5005)
+
+# Check cluster status
+ctlptl get clusters
+kubectl cluster-info --context kind-kind
+
+# Registry operations
+docker push localhost:5005/my-image  # Push images to local registry
+```
+
+**ctlptl Integration Benefits:**
+- **Declarative cluster management**: Cluster configuration defined in YAML
+- **Automatic registry setup**: Local registry at `localhost:5005` created automatically  
+- **Fast image builds**: No network dependency, ~900ms image pulls vs several seconds
+- **Tilt auto-detection**: Automatically uses local registry when available
+- **Consistent naming**: Cluster named `kind-kind` following kind conventions
+
+### Debugging Tiltfiles
+
+```bash
+# Stream logs directly to terminal (useful for debugging)
+task up -- --stream=true
+
+# Run in legacy terminal mode
+task up -- --legacy=true
+
+# Validate Tiltfile without running
+tilt ci
+
+# Check Tiltfile syntax
+tilt dump cli-analytics
+
+# Run with verbose output
+tilt up --verbose
+
+# Run with specific Tiltfile arguments
+tilt up -- --arg=value
+
+# Manual trigger for test execution
+tilt trigger run-tests
+
+# Clean up completed pods
+tilt trigger cleanup-pods
 ```
 
 ### Testing
@@ -94,7 +148,7 @@ Uses Task (taskfile.dev) with organized taskfiles in `taskfiles/` directory:
 - `bootstrap.yml`: Logging and container execution operations
 - `uv.yml`: Python/uv operations
 - `docker.yml`: Container operations with multi-platform builds
-- `kind.yml`: Local Kubernetes cluster management
+- `kind.yml`: Local Kubernetes cluster management using ctlptl
 - `tilt.yml`: Development workflow with live reloading
 - `k8s.yml`: Kubernetes operations (aliased as kubectl, kubernetes, k)
 
@@ -121,7 +175,10 @@ Uses Task (taskfile.dev) with organized taskfiles in `taskfiles/` directory:
 3. Test locally with `./main.py` or `uv run python main.py`
 4. Run tests with `pytest tests/`
 5. Run `pre-commit run --all-files` before committing
-6. For container changes, test with `task build && task docker:run`
+6. For container changes, test with:
+   - **Local containers**: `task build && task docker:run`
+   - **Kubernetes**: `task up` (auto-creates cluster, builds image, deploys)
+7. Clean up when done: `task tilt:clean` (removes cluster + registry)
 
 ## Runtime Management
 
@@ -130,3 +187,23 @@ Uses Task (taskfile.dev) with organized taskfiles in `taskfiles/` directory:
 - **Dependencies**: Locked in `uv.lock` with exclude-newer constraint
 - **Container user**: Runs as non-root `appuser`
 - **Multi-platform builds**: Supports linux/amd64 and linux/arm64
+
+## Environment Configuration
+
+The project uses environment variables for configuration, loaded from `.env` file by Task:
+
+```bash
+# Copy example configuration
+cp .env.example .env
+
+# Edit .env to set your values
+SERVICE=net-con        # Service name
+VERSION=latest         # Image version
+REGISTRY=ghcr.io      # Container registry (no trailing slash)
+NAMESPACE=default      # Kubernetes namespace
+```
+
+Both Task and Tilt read these environment variables:
+- Task: Automatically loads `.env` file
+- Tilt: Reads from environment (set by Task or system)
+- **Local Registry**: When using ctlptl, Tilt automatically detects the local registry at `localhost:5005` and uses it instead of the configured `REGISTRY`
