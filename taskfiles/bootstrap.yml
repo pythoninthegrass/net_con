@@ -27,7 +27,7 @@ tasks:
           deployment)
             envsubst < deployment.tpl.yml | head -n 55
             ;;
-          pod)
+          pod|job)
             envsubst < deployment.tpl.yml | tail -n +56
             ;;
           all)
@@ -35,7 +35,7 @@ tasks:
             ;;
           *)
             echo "Invalid resource type: {{.RESOURCE_TYPE}}" >&2
-            echo "Valid types: deployment, pod, all" >&2
+            echo "Valid types: deployment, pod, job, all" >&2
             exit 1
             ;;
         esac
