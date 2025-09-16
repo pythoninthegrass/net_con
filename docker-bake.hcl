@@ -3,6 +3,10 @@ variable "REGISTRY" {
   default = "ghcr.io"
 }
 
+variable "USER_NAME" {
+  default = "pythoninthegrass"
+}
+
 variable "IMAGE_NAME" {
   default = "net-con"
 }
@@ -14,8 +18,8 @@ variable "TAG" {
 // Base target with shared configuration
 target "docker-metadata-action" {
   tags = [
-    "${REGISTRY}/${IMAGE_NAME}:${TAG}",
-    "${REGISTRY}/${IMAGE_NAME}:latest",
+    "${REGISTRY}/${USER_NAME}/${IMAGE_NAME}:${TAG}",
+    "${REGISTRY}/${USER_NAME}/${IMAGE_NAME}:latest",
   ]
 }
 
