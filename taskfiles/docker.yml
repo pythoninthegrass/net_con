@@ -1,8 +1,5 @@
 version: "3.0"
 
-set: ['e', 'u', 'pipefail']
-shopt: ['globstar']
-
 vars:
   COMPOSE_FILE: '{{.COMPOSE_FILE | default (printf "%s/docker-compose.yml" .ROOT_DIR)}}'
   COMPOSE_REMOVE_ORPHANS: '{{.COMPOSE_REMOVE_ORPHANS | default "true"}}'
@@ -12,6 +9,7 @@ vars:
   USER_NAME: '{{.USER_NAME | default "pythoninthegrass"}}'
   SERVICE: '{{.SERVICE | default "net-con"}}'
   VERSION: '{{.VERSION | default "latest"}}'
+  FULL_IMAGE: "{{.REGISTRY}}/{{.USER_NAME}}/{{.SERVICE}}:{{.VERSION}}"
 
 tasks:
   net:
@@ -38,23 +36,6 @@ tasks:
         docker volume ls --format \{\{.Name\}\} \
           | grep -q '^{{.SERVICE}}-vol$'
 
-  build:
-    desc: "Build the docker image"
-    summary: |
-      Build the docker image with the specified dockerfile.
-
-      The default dockerfile is `Dockerfile`.
-
-      USAGE
-        task docker:build
-    cmds:
-      - |
-        docker build \
-          -f {{.DOCKERFILE}} \
-          -t {{.SERVICE}} \
-          --platform {{.ARCH}} \
-          .
-
   login:
     desc: "Login to the container registry"
     cmds:
@@ -67,14 +48,6 @@ tasks:
     status:
       - |
         jq -e '.auths | keys[] | select(contains("{{.REGISTRY_URL}}"))' ~/.docker/config.json
-
-  push:
-    desc: "Push the docker image to the registry"
-    deps:
-      - login
-      - build
-    cmds:
-      - docker push {{.REGISTRY_URL}}/{{.USER_NAME}}/{{.SERVICE}}
 
   up:
     desc: "Start the project with docker compose"
@@ -152,6 +125,23 @@ tasks:
       - cmd: echo "Docker bake file is valid"
         silent: true
 
+  build:
+    desc: "Build the docker image"
+    summary: |
+      Build the docker image with the specified dockerfile.
+
+      The default dockerfile is `Dockerfile`.
+
+      USAGE
+        task docker:build
+    cmds:
+      - |
+        docker build \
+          -f {{.DOCKERFILE}} \
+          -t {{.SERVICE}} \
+          --platform {{.ARCH}} \
+          .
+
   buildx:
     desc: "Build using docker buildx bake"
     summary: |
@@ -188,3 +178,57 @@ tasks:
           --file docker-bake.hcl \
           {{.TARGET}} \
           --load
+
+  tag:
+    desc: "Tag the docker image for a different registry"
+    summary: |
+      Tag the docker image for a different registry.
+
+      The default alternative registry is Control Plane (registry.cpln.io).
+
+      USAGE
+        task docker:tag -- <full-image>
+
+      EXAMPLE
+        task docker:tag -- cpln
+        task docker:tag -- ghcr.io/pythoninthegrass/net-con:latest
+    cmds:
+      - |
+        case "{{.CLI_ARGS}}" in
+          "cpln")
+            docker tag {{.FULL_IMAGE}} {{.USER_NAME}}.registry.cpln.io/{{.SERVICE}}:{{.VERSION}}
+            ;;
+          *)
+            docker tag {{.FULL_IMAGE}} {{.CLI_ARGS}}
+            ;;
+        esac
+
+  push:
+    desc: "Push the docker image to the registry"
+    summary: |
+      Push the docker image to the specified registry.
+
+      The default registry is GitHub Container Registry (ghcr.io).
+
+      USAGE
+        task docker:push -- <registry>
+
+      EXAMPLE
+        task docker:push  # ghcr.io
+        task docker:push -- cpln
+        task docker:push -- ghcr.io/pythoninthegrass/net-con:latest
+    deps:
+      - login
+    cmds:
+      - |
+        case "{{.CLI_ARGS}}" in
+          "cpln")
+            docker push {{.USER_NAME}}.registry.cpln.io/{{.SERVICE}}:{{.VERSION}}
+            ;;
+          "")
+            docker push {{.FULL_IMAGE}}
+            ;;
+          *)
+            docker push {{.CLI_ARGS}}
+            ;;
+        esac
