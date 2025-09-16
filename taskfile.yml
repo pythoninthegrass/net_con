@@ -1,5 +1,20 @@
 version: "3.0"
 
+set: ['e', 'u', 'pipefail']
+shopt: ['globstar']
+
+dotenv: ['.env']
+
+env:
+  VENV_DIR: "{{.ROOT_DIR}}/.venv"
+  PATH: "{{.VENV_DIR}}/bin:{{.PATH}}"
+
+vars:
+  SERVICE: '{{.SERVICE | default "net-con"}}'
+  VERSION: '{{.VERSION | default "latest"}}'
+  REGISTRY: '{{.REGISTRY | default "ghcr.io"}}'
+  NAMESPACE: '{{.NAMESPACE | default "default"}}'
+
 includes:
   bootstrap:
     taskfile: ./taskfiles/bootstrap.yml
@@ -14,17 +29,6 @@ includes:
     taskfile: ./taskfiles/tilt.yml
   uv:
     taskfile: ./taskfiles/uv.yml
-
-env:
-  VENV_DIR: "{{.ROOT_DIR}}/.venv"
-  PATH: "{{.VENV_DIR}}/bin:{{.PATH}}"
-
-vars:
-  SERVICE: '{{.SERVICE | default "net-con"}}'
-  VERSION: '{{.VERSION | default "latest"}}'
-  REGISTRY: '{{.REGISTRY | default "ghcr.io"}}'
-  NAMESPACE: '{{.NAMESPACE | default "default"}}'
-  FULL_IMAGE: "{{.REGISTRY}}/{{.SERVICE}}:{{.VERSION}}"
 
 tasks:
   default:
@@ -90,5 +94,5 @@ tasks:
     desc: Clean up all resources
     cmds:
       - task: tilt:clean
-      - task: docker:down  
+      - task: docker:down
       - task: docker:prune
